@@ -28,7 +28,6 @@
             color: var(--tg-text);
         }
 
-        /* ===== FULL-WIDTH BOT ONLY ===== */
         .bot-container {
             width: 100vw;
             height: 100vh;
@@ -45,7 +44,6 @@
             gap: 14px;
             border-bottom: 1px solid rgba(255,255,255,0.06);
             flex-shrink: 0;
-            position: relative;
             z-index: 10;
         }
 
@@ -72,9 +70,7 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            background:
-                radial-gradient(ellipse at 50% 80%, rgba(82, 136, 193, 0.04) 0%, transparent 60%),
-                var(--tg-bg-secondary);
+            background: radial-gradient(ellipse at 50% 80%, rgba(82, 136, 193, 0.04) 0%, transparent 60%), var(--tg-bg-secondary);
             min-height: 0;
         }
 
@@ -301,17 +297,17 @@
             }
         }
 
-        // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ ==========
+        // === ОТПРАВКА В GOOGLE SHEETS (НОВЫЙ URL) ===
         async function addApplicationToSheet(company, inn, contact, tender) {
             const formData = new URLSearchParams();
             formData.append('company', company);
             formData.append('inn', inn);
             formData.append('contact', contact);
             formData.append('tender', tender);
-            
+
             console.log('📤 Отправляем:', {company, inn, contact, tender});
             try {
-                const response = await fetch('https://script.google.com/macros/s/AKfycby3DOlJJbtuL-k6ur5noVVpaZTnjfaP1tsGM57tT3V9roWX3R-bDvfo7aHDC-HfUjcDmw/exec', {
+                const response = await fetch('https://script.google.com/macros/s/AKfycbw_OmjwS45icj_Nrt-vCxA6Mu9ObiMUanncTxlyxkhQWyiugyPyFr3eONUp3ne0iKTP8Q/exec', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: formData
