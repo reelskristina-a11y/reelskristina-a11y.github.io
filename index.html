@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Бот — Приём заявок на тендер</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --tg-bg: #17212b;
+            --tg-bg-secondary: #0e1621;
+            --tg-blue: #5288c1;
+            --tg-msg-out: #2b5278;
+            --tg-msg-in: #182533;
+            --tg-text: #ffffff;
+            --tg-hint: #6d7f8f;
+            --green: #4fae4e;
+            --gold: #c9a84c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background: #0a0e14;
+            color: var(--tg-text);
+        }
+
+        /* ===== FULL-WIDTH BOT ONLY ===== */
+        .bot-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .bot-header {
+            padding: 16px 24px;
+            background: var(--tg-bg);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+        }
+
+        .bot-avatar {
+            width: 46px; height: 46px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--tg-blue), #3a7bd5);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; flex-shrink: 0;
+        }
+
+        .bot-header-info h3 { font-size: 17px; font-weight: 600; }
+        .bot-header-info span { font-size: 13px; color: var(--tg-hint); }
+        .online-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+            display: inline-block; margin-right: 4px;
+        }
+
+        /* FIXED: Chat area — properly scrollable */
+        .chat-area {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background:
+                radial-gradient(ellipse at 50% 80%, rgba(82, 136, 193, 0.04) 0%, transparent 60%),
+                var(--tg-bg-secondary);
+            min-height: 0;
+        }
+
+        .chat-area::-webkit-scrollbar { width: 6px; }
+        .chat-area::-webkit-scrollbar-track { background: transparent; }
+        .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+        .msg-date {
+            text-align: center; font-size: 12px; color: var(--tg-hint);
+            margin: 8px 0; padding: 4px 12px;
+        }
+
+        .message {
+            max-width: 75%;
+            padding: 11px 16px;
+            border-radius: 14px;
+            font-size: 15px;
+            line-height: 1.5;
+            position: relative;
+            animation: msgIn 0.3s ease;
+            word-wrap: break-word;
+        }
+
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-bot { align-self: flex-start; background: var(--tg-msg-in); border-bottom-left-radius: 4px; }
+        .msg-user { align-self: flex-end; background: var(--tg-msg-out); border-bottom-right-radius: 4px; }
+
+        .msg-time {
+            font-size: 11px; color: rgba(255,255,255,0.3);
+            text-align: right; margin-top: 5px;
+        }
+        .msg-bot .msg-time { color: var(--tg-hint); }
+
+        .typing-indicator {
+            align-self: flex-start;
+            padding: 14px 18px;
+            background: var(--tg-msg-in);
+            border-radius: 14px;
+            display: none;
+            gap: 5px;
+            align-items: center;
+        }
+        .typing-indicator.active { display: flex; }
+        .typing-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--tg-hint);
+            animation: typingBounce 1.2s ease-in-out infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* FIXED: Input area — always visible */
+        .input-area {
+            padding: 14px 20px;
+            background: var(--tg-bg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 20px;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: var(--tg-bg-secondary);
+            color: var(--tg-text);
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .chat-input:focus { border-color: var(--tg-blue); box-shadow: 0 0 0 2px rgba(82, 136, 193, 0.2); }
+        .chat-input::placeholder { color: var(--tg-hint); }
+        .chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .send-btn {
+            width: 46px; height: 46px; border-radius: 50%; border: none;
+            background: var(--tg-blue); color: white; font-size: 20px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s; flex-shrink: 0;
+        }
+        .send-btn:hover { background: #4a7ab5; transform: scale(1.05); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .quick-actions {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            margin: 4px 0;
+        }
+        .quick-actions.align-start { align-self: flex-start; }
+
+        .quick-btn {
+            padding: 8px 18px; border-radius: 20px;
+            border: 1px solid var(--tg-blue); background: transparent;
+            color: var(--tg-blue); font-size: 13px; cursor: pointer;
+            transition: all 0.2s; font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+        }
+        .quick-btn:hover { background: var(--tg-blue); color: white; }
+
+        @media (max-width: 600px) {
+            .chat-area { padding: 16px 14px; }
+            .input-area { padding: 10px 14px; }
+            .message { max-width: 85%; font-size: 14px; }
+            .bot-header { padding: 12px 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bot-container">
+        <!-- Header -->
+        <div class="bot-header">
+            <div class="bot-avatar">🤖</div>
+            <div class="bot-header-info">
+                <h3>ТендерБот</h3>
+                <span><span class="online-dot"></span>онлайн</span>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-area" id="chatArea">
+            <div class="msg-date">Сегодня</div>
+        </div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Введите сообщение..." autocomplete="off">
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== STATE =====
+        let botState = 'idle';
+        let formData = {};
+        let applications = [];
+
+        // ===== HELPERS =====
+        function getCurrentTime() {
+            const now = new Date();
+            return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        }
+
+        function formatDate() {
+            const now = new Date();
+            return now.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + getCurrentTime();
+        }
+
+        function scrollToBottom() {
+            const chatArea = document.getElementById('chatArea');
+            requestAnimationFrame(() => {
+                chatArea.scrollTop = chatArea.scrollHeight;
+            });
+        }
+
+        function addMessage(text, sender, isHTML = false) {
+            const chatArea = document.getElementById('chatArea');
+            const msg = document.createElement('div');
+            msg.className = `message msg-${sender}`;
+
+            const content = document.createElement('div');
+            if (isHTML) {
+                content.innerHTML = text.replace(/\n/g, '<br>').replace(/<b>(.*?)<\/b>/g, '<strong>$1</strong>');
+            } else {
+                content.textContent = text;
+            }
+            msg.appendChild(content);
+
+            const time = document.createElement('div');
+            time.className = 'msg-time';
+            time.textContent = getCurrentTime();
+            msg.appendChild(time);
+
+            chatArea.appendChild(msg);
+            scrollToBottom();
+        }
+
+        function addKeyboard(buttons) {
+            const chatArea = document.getElementById('chatArea');
+            const div = document.createElement('div');
+            div.className = 'quick-actions align-start';
+
+            buttons.forEach(btn => {
+                const b = document.createElement('button');
+                b.className = 'quick-btn';
+                b.textContent = btn;
+                b.onclick = () => {
+                    document.getElementById('chatInput').value = btn;
+                    sendMessage();
+                };
+                div.appendChild(b);
+            });
+
+            chatArea.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showTyping() {
+            const chatArea = document.getElementById('chatArea');
+            let typing = document.getElementById('typingIndicator');
+            if (!typing) {
+                typing = document.createElement('div');
+                typing.className = 'typing-indicator';
+                typing.id = 'typingIndicator';
+                typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+                chatArea.appendChild(typing);
+            }
+            typing.classList.add('active');
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        async function botReply(responses, delay = 700) {
+            showTyping();
+            for (let i = 0; i < responses.length; i++) {
+                await new Promise(r => setTimeout(r, delay + i * 400));
+                hideTyping();
+                if (responses[i].type === 'keyboard') {
+                    addKeyboard(responses[i].buttons);
+                } else {
+                    addMessage(responses[i].text, 'bot', true);
+                }
+                if (i < responses.length - 1) showTyping();
+            }
+        }
+
+        // ===== GOOGLE SHEETS INTEGRATION =====
+        async function addApplicationToSheet(company, inn, contact, tender) {
+            const data = { company, inn, contact, tender };
+            
+            try {
+                const response = await fetch('https://script.google.com/macros/s/AKfycbygvT7H4-2F6OuQjB1uvkqmjItuSMSdGIx0Xf3ZE6Q3ntl9XsSIycEiwwFuMdBhgAfG/exec', {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (error) {
+                console.log('Fetch error:', error.message);
+            }
+        }
+
+        // ===== BOT LOGIC =====
+        const botResponses = {
+            start: [
+                { type: 'text', text: '👋 Добро пожаловать в <b>ТендерБот</b>!' },
+                { type: 'text', text: 'Я помогу вам подать заявку на участие в тендере.\n\nНажмите кнопку ниже или напишите <b>хочу подать заявку</b>' },
+                { type: 'keyboard', buttons: ['📝 Подать заявку', '📊 Статус заявок', '📞 Контакты'] }
+            ],
+            status: [
+                { type: 'text', text: `📊 Всего заявок: <b>${applications.length}</b>\n\nВсе заявки синхронизированы с Google Sheets.` }
+            ],
+            contacts: [
+                { type: 'text', text: '📞 <b>Контакты поддержки:</b>\n\n📧 tender@example.com\n📱 +7 (999) 123-45-67\n\nВремя работы: Пн-Пт 9:00-18:00' }
+            ],
+            dont_understand: [
+                { type: 'text', text: '🤔 Я пока не понимаю эту команду.\n\nВыберите действие из меню:' },
+                { type: 'keyboard', buttons: ['📝 Подать заявку', '📊 Статус заявок', '📞 Контакты'] }
+            ]
+        };
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage(text, 'user');
+            input.value = '';
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+
+            if (botState === 'idle') {
+                if (text.includes('заявк') || text.includes('📝')) {
+                    botState = 'ask_company';
+                    await botReply([
+                        { type: 'text', text: '📝 Отлично! Заполним заявку.\n\n<b>Шаг 1/4:</b> Введите название компании:' }
+                    ]);
+                } else if (text.includes('статус') || text.includes('📊')) {
+                    await botReply(botResponses.status);
+                } else if (text.includes('контакт') || text.includes('📞')) {
+                    await botReply(botResponses.contacts);
+                } else if (text.toLowerCase() === '/start' || text.includes('привет') || text.includes('начн')) {
+                    await botReply(botResponses.start);
+                } else {
+                    await botReply(botResponses.dont_understand);
+                }
+            } else if (botState === 'ask_company') {
+                formData.company = text;
+                botState = 'ask_inn';
+                await botReply([
+                    { type: 'text', text: `✅ Компания: <b>${text}</b>\n\n<b>Шаг 2/4:</b> Введите ИНН компании:` }
+                ]);
+            } else if (botState === 'ask_inn') {
+                const inn = text.replace(/\D/g, '');
+                if (inn.length < 10 || inn.length > 12) {
+                    await botReply([
+                        { type: 'text', text: '⚠️ ИНН должен содержать 10 или 12 цифр. Попробуйте снова:' }
+                    ]);
+                    sendBtn.disabled = false;
+                    return;
+                }
+                formData.inn = inn;
+                botState = 'ask_contact';
+                await botReply([
+                    { type: 'text', text: `✅ ИНН: <b>${inn}</b>\n\n<b>Шаг 3/4:</b> Введите контактный телефон или email:` }
+                ]);
+            } else if (botState === 'ask_contact') {
+                formData.contact = text;
+                botState = 'ask_tender';
+                await botReply([
+                    { type: 'text', text: `✅ Контакт: <b>${text}</b>\n\n<b>Шаг 4/4:</b> Введите номер тендера (например: №12345):` }
+                ]);
+            } else if (botState === 'ask_tender') {
+                formData.tender = text;
+
+                // Отправляем в Google Sheets
+                await addApplicationToSheet(formData.company, formData.inn, formData.contact, formData.tender);
+                applications.push(formData);
+
+                await botReply([
+                    { type: 'text', text: `✅ Номер тендера: <b>${text}</b>` },
+                    { type: 'text', text: '🎉 <b>Заявка успешно отправлена!</b>\n\nВсе данные сохранены в Google Sheets.\nМы свяжемся с вами в ближайшее время.' },
+                    { type: 'keyboard', buttons: ['📝 Подать ещё заявку', '📊 Статус заявок'] }
+                ]);
+
+                formData = {};
+                botState = 'idle';
+            }
+
+            sendBtn.disabled = false;
+            input.focus();
+        }
+
+        // Enter key
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initial message
+        setTimeout(async () => {
+            await botReply(botResponses.start, 600);
+        }, 500);
+    </script>
+</body>
+</html>
