@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ТендерБот — Бронирование места</title>
+    <title>ТендерБот</title>
     <script src="https://accounts.google.com/gsi/client" async></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -65,6 +65,7 @@
             color: var(--tg-hint);
         }
         .info-card strong { color: var(--tg-text); }
+        .info-card p { margin: 8px 0; }
         @media (max-width: 600px) { .chat-area { padding: 16px 14px; } .input-area { padding: 10px 14px; } .message { max-width: 85%; font-size: 14px; } .bot-header { padding: 12px 16px; } }
     </style>
 </head>
@@ -82,18 +83,19 @@
 </div>
 
 <script>
-    // ==================== КОНФИГУРАЦИЯ (ОБНОВЛЁННЫЙ URL) ====================
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzuzFbt2n6lDHOoMhYm_2_3oZRoEulZN6jWf5Ivo9DGky6gXTx-_bPG_Uo6Y_KMdBmiAg/exec';
+    // ==================== КОНФИГУРАЦИЯ (НОВЫЙ URL) ====================
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbx0qApNCkEzVd747CUzkSBFR4hdxVkeUo0YmLMystMvbEmGQUNASSp3UEIjLmV52KRaYg/exec';
     const GOOGLE_CLIENT_ID = '198238047306-u0s10ilol27lpmqemtlj1as9m963nfav.apps.googleusercontent.com';
-    const PRICE = 3;                                   // ⚡ Стоимость 3 рубля
+    const PRICE = 3;
     const GROUP_LINK = 'https://t.me/+GA5yfIIAcasyYWQy';
+    const CONTACT_INFO = "📞 Наши контакты:\n📧 tender@example.com\n📱 +7 (999) 123-45-67\n\nПо вопросам тендера можете связаться напрямую.";
 
-    // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
     let botState = 'idle';
     let currentUser = null;
     let isPaid = false;
+    let requestFormData = {};
 
-    // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (чат) ====================
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ЧАТА ====================
     function getCurrentTime() {
         const now = new Date();
         return now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
@@ -117,11 +119,11 @@
         chatArea.appendChild(msg);
         scrollToBottom();
     }
-    function addInfoCard(text) {
+    function addInfoCard(htmlContent) {
         const chatArea = document.getElementById('chatArea');
         const card = document.createElement('div');
         card.className = 'info-card';
-        card.innerHTML = text;
+        card.innerHTML = htmlContent;
         chatArea.appendChild(card);
         scrollToBottom();
     }
@@ -180,11 +182,13 @@
                 currentUser = result.user;
                 localStorage.setItem('userSub', currentUser.sub);
                 localStorage.setItem('userName', currentUser.name);
-                await botReply([{ type: 'text', text: `✅ Добро пожаловать, ${currentUser.name}! Теперь вы можете попасть в список участников тендера.` }]);
-                addKeyboard(['🎯 Попасть в список участников тендера']);
+                localStorage.setItem('userEmail', currentUser.email);
+                await botReply([{ type: 'text', text: `✅ Добро пожаловать, ${currentUser.name}!` }]);
+                addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
                 document.getElementById('google-login-btn').style.display = 'none';
                 botState = 'idle';
                 await checkPaymentStatus(true);
+                await checkRequestStatus(true);
             } else {
                 await botReply([{ type: 'text', text: `❌ Ошибка входа: ${result.error}. Попробуйте другой аккаунт.` }]);
             }
@@ -205,12 +209,12 @@
             const response = await fetch(GAS_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `action=createPayment&userSub=${encodeURIComponent(currentUser.sub)}&returnUrl=${encodeURIComponent(returnUrl)}`
+                body: `action=createPayment&userSub=${encodeURIComponent(currentUser.sub)}&returnUrl=${encodeURIComponent(returnUrl)}&email=${encodeURIComponent(currentUser.email)}`
             });
             const result = await response.json();
             if (result.success) {
                 window.open(result.paymentUrl, '_blank');
-                await botReply([{ type: 'text', text: `🔗 Ссылка на оплату (${PRICE} руб.) открыта в новой вкладке. После оплаты нажмите кнопку "Проверить оплату".` }]);
+                await botReply([{ type: 'text', text: `🔗 Ссылка на оплату (${PRICE} руб.) открыта в новой вкладке. После оплаты нажмите "Проверить оплату".` }]);
                 addKeyboard(['🔍 Проверить оплату']);
                 botState = 'checking_payment';
                 return true;
@@ -238,7 +242,7 @@
                 isPaid = true;
                 if (!silent) {
                     await botReply([{ type: 'text', text: result.message }]);
-                    addKeyboard(['🎯 Попасть в список участников тендера']);
+                    addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
                 } else {
                     if (result.message) addMessage(result.message, 'bot', true);
                 }
@@ -255,17 +259,52 @@
         }
     }
 
-    // ==================== ЛОГИКА БОТА ====================
-    const botResponses = {
-        start: [
-            { type: 'text', text: '👋 Добро пожаловать в <b>ТендерБот</b>!' }
-        ],
-        afterLogin: [
-            { type: 'text', text: `💰 Стоимость участия: ${PRICE} руб.` },
-            { type: 'text', text: 'Нажмите кнопку ниже, чтобы оплатить и попасть в список участников тендера.' }
-        ]
-    };
+    // ==================== ЗАЯВКИ ====================
+    async function submitRequest(company, inn, contact, tender) {
+        if (!currentUser) return false;
+        try {
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=submitRequest&userSub=${encodeURIComponent(currentUser.sub)}&email=${encodeURIComponent(currentUser.email)}&company=${encodeURIComponent(company)}&inn=${encodeURIComponent(inn)}&contact=${encodeURIComponent(contact)}&tender=${encodeURIComponent(tender)}`
+            });
+            const result = await response.json();
+            if (result.success) {
+                await botReply([{ type: 'text', text: '✅ Ваша заявка принята! Мы свяжемся с вами в ближайшее время.' }]);
+                return true;
+            } else {
+                await botReply([{ type: 'text', text: `❌ Ошибка при подаче заявки: ${result.error}` }]);
+                return false;
+            }
+        } catch (err) {
+            console.error(err);
+            await botReply([{ type: 'text', text: '❌ Не удалось отправить заявку.' }]);
+            return false;
+        }
+    }
 
+    async function checkRequestStatus(silent = false) {
+        if (!currentUser) return;
+        try {
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=getRequestStatus&userSub=${encodeURIComponent(currentUser.sub)}`
+            });
+            const result = await response.json();
+            if (result.status) {
+                const msg = `📋 Ваша последняя заявка от ${result.date || 'неизвестно'}:\nКомпания: ${result.company}\nИНН: ${result.inn}\nКонтакт: ${result.contact}\nТендер: ${result.tender}\nСтатус: ${result.status}`;
+                if (!silent) await botReply([{ type: 'text', text: msg }]);
+            } else {
+                if (!silent) await botReply([{ type: 'text', text: '📭 У вас пока нет поданных заявок.' }]);
+            }
+        } catch (err) {
+            console.error(err);
+            if (!silent) await botReply([{ type: 'text', text: '❌ Ошибка при получении статуса заявки.' }]);
+        }
+    }
+
+    // ==================== ЛОГИКА БОТА ====================
     async function sendMessage() {
         const input = document.getElementById('chatInput');
         const text = input.value.trim();
@@ -276,54 +315,109 @@
         sendBtn.disabled = true;
 
         if (botState === 'idle') {
-            if (text.includes('попасть в список') || text.includes('🎯')) {
+            if (text.includes('Подать заявку') || text.includes('📝')) {
+                if (!currentUser) {
+                    await botReply([{ type: 'text', text: 'Пожалуйста, сначала войдите через Google.' }]);
+                } else {
+                    botState = 'request_company';
+                    await botReply([{ type: 'text', text: '📝 Заполните заявку.\n\n<b>Шаг 1/4:</b> Введите название компании:' }]);
+                }
+            } else if (text.includes('Попасть без ожидания') || text.includes('💎')) {
                 if (!currentUser) {
                     await botReply([{ type: 'text', text: 'Пожалуйста, сначала войдите через Google.' }]);
                 } else if (isPaid) {
                     await botReply([{ type: 'text', text: `✅ Вы уже в списке участников! Ссылка на группу: ${GROUP_LINK}` }]);
                 } else {
-                    await botReply(botResponses.afterLogin);
+                    await botReply([{ type: 'text', text: `💰 Стоимость участия: ${PRICE} руб.\n\nНажмите кнопку ниже для оплаты.` }]);
                     addKeyboard(['✅ Оплатить', '❌ Отмена']);
                     botState = 'awaiting_payment_confirm';
                 }
+            } else if (text.includes('Контакты') || text.includes('📞')) {
+                await botReply([{ type: 'text', text: CONTACT_INFO }]);
+            } else if (text.includes('Состояние заявки') || text.includes('📊')) {
+                if (!currentUser) {
+                    await botReply([{ type: 'text', text: 'Сначала войдите через Google.' }]);
+                } else {
+                    await checkRequestStatus(false);
+                }
+            } else if (text.includes('Подать повторную заявку') || text.includes('🔄')) {
+                if (!currentUser) {
+                    await botReply([{ type: 'text', text: 'Сначала войдите через Google.' }]);
+                } else {
+                    botState = 'request_company';
+                    await botReply([{ type: 'text', text: '🔄 Подача повторной заявки.\n\n<b>Шаг 1/4:</b> Введите название компании:' }]);
+                }
             } else if (text.includes('привет') || text.includes('начать') || text === '/start') {
-                await botReply(botResponses.start);
+                await botReply([{ type: 'text', text: '👋 Добро пожаловать в ТендерБот!' }]);
                 if (!currentUser && !document.getElementById('google-login-btn')) {
-                    const chatArea = document.getElementById('chatArea');
-                    const btnDiv = document.createElement('div');
-                    btnDiv.id = 'google-login-btn';
-                    btnDiv.style.margin = '10px 0';
-                    btnDiv.style.alignSelf = 'flex-start';
-                    chatArea.appendChild(btnDiv);
-                    google.accounts.id.renderButton(btnDiv, { theme: 'outline', size: 'large' });
-                    scrollToBottom();
+                    showLoginButton();
                 } else if (currentUser) {
-                    addKeyboard(['🎯 Попасть в список участников тендера']);
+                    addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
                 }
             } else {
-                await botReply([{ type: 'text', text: 'Я не понимаю эту команду. Нажмите "Попасть в список участников тендера" или используйте кнопки.' }]);
-                if (currentUser && !isPaid) addKeyboard(['🎯 Попасть в список участников тендера', '🔍 Проверить оплату']);
-                else if (currentUser && isPaid) addKeyboard(['🎯 Попасть в список участников тендера']);
+                await botReply([{ type: 'text', text: 'Я не понимаю эту команду. Используйте кнопки меню.' }]);
+                if (currentUser) addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
             }
-        } else if (botState === 'awaiting_payment_confirm') {
+        } 
+        else if (botState === 'awaiting_payment_confirm') {
             if (text.includes('Оплатить') || text.includes('✅')) {
                 await createPayment();
             } else {
                 await botReply([{ type: 'text', text: '❌ Оплата отменена.' }]);
                 botState = 'idle';
+                addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
             }
-        } else if (botState === 'checking_payment') {
+        } 
+        else if (botState === 'checking_payment') {
             if (text.includes('Проверить')) {
                 await checkPaymentStatus(false);
             } else {
                 await botReply([{ type: 'text', text: 'Пожалуйста, нажмите "Проверить оплату".' }]);
             }
         }
+        else if (botState === 'request_company') {
+            requestFormData.company = text;
+            botState = 'request_inn';
+            await botReply([{ type: 'text', text: `✅ Компания: ${text}\n\n<b>Шаг 2/4:</b> Введите ИНН компании:` }]);
+        }
+        else if (botState === 'request_inn') {
+            const inn = text.replace(/\D/g, '');
+            if (inn.length < 10 || inn.length > 12) {
+                await botReply([{ type: 'text', text: '⚠️ ИНН должен содержать 10 или 12 цифр. Попробуйте снова:' }]);
+                sendBtn.disabled = false;
+                return;
+            }
+            requestFormData.inn = inn;
+            botState = 'request_contact';
+            await botReply([{ type: 'text', text: `✅ ИНН: ${inn}\n\n<b>Шаг 3/4:</b> Введите контактный телефон или email:` }]);
+        }
+        else if (botState === 'request_contact') {
+            requestFormData.contact = text;
+            botState = 'request_tender';
+            await botReply([{ type: 'text', text: `✅ Контакт: ${text}\n\n<b>Шаг 4/4:</b> Введите номер тендера (например: №12345):` }]);
+        }
+        else if (botState === 'request_tender') {
+            requestFormData.tender = text;
+            await submitRequest(requestFormData.company, requestFormData.inn, requestFormData.contact, requestFormData.tender);
+            requestFormData = {};
+            botState = 'idle';
+            addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
+        }
+
         sendBtn.disabled = false;
         input.focus();
     }
 
-    document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    function showLoginButton() {
+        const chatArea = document.getElementById('chatArea');
+        const btnDiv = document.createElement('div');
+        btnDiv.id = 'google-login-btn';
+        btnDiv.style.margin = '10px 0';
+        btnDiv.style.alignSelf = 'flex-start';
+        chatArea.appendChild(btnDiv);
+        google.accounts.id.renderButton(btnDiv, { theme: 'outline', size: 'large' });
+        scrollToBottom();
+    }
 
     // Инициализация
     window.onload = function() {
@@ -333,34 +427,41 @@
         });
         const savedSub = localStorage.getItem('userSub');
         if (savedSub) {
-            currentUser = { sub: savedSub, name: localStorage.getItem('userName') };
+            currentUser = { 
+                sub: savedSub, 
+                name: localStorage.getItem('userName'), 
+                email: localStorage.getItem('userEmail') || '' 
+            };
             checkPaymentStatus(true);
-            addKeyboard(['🎯 Попасть в список участников тендера']);
+            checkRequestStatus(true);
+            addKeyboard(['📝 Подать заявку', '💎 Попасть без ожидания', '📞 Контакты', '📊 Состояние заявки', '🔄 Подать повторную заявку']);
         } else {
             setTimeout(async () => {
-                await botReply(botResponses.start, 600);
-                addInfoCard(`
+                const infoHtml = `
                     <strong>📌 О боте</strong><br>
-                    Этот бот помогает организовать участие в тендере. Вы сможете:
-                    <ul style="margin: 8px 0 0 20px; padding-left: 0;">
-                        <li>✅ Забронировать место</li>
-                        <li>✅ Оплатить участие (${PRICE} руб.)</li>
-                        <li>✅ Получить доступ к закрытой группе участников</li>
-                        <li>✅ Вход через Google гарантирует сохранение вашей истории оплат</li>
-                    </ul>
-                    Для начала авторизуйтесь через кнопку ниже.
-                `);
-                const chatArea = document.getElementById('chatArea');
-                const btnDiv = document.createElement('div');
-                btnDiv.id = 'google-login-btn';
-                btnDiv.style.margin = '10px 0';
-                btnDiv.style.alignSelf = 'flex-start';
-                chatArea.appendChild(btnDiv);
-                google.accounts.id.renderButton(btnDiv, { theme: 'outline', size: 'large' });
-                scrollToBottom();
+                    Этот бот помогает организовать участие в тендере. Вы сможете:<br>
+                    • <strong>📝 Подать заявку</strong> на участие в тендере (бесплатно, ожидание связи)<br>
+                    • <strong>💎 Попасть без ожидания</strong> — оплатить 3 руб. и сразу получить доступ к закрытой группе участников<br>
+                    • <strong>📞 Контакты</strong> для связи по вопросам тендера<br>
+                    • <strong>📊 Состояние заявки</strong> — узнать статус поданной заявки<br>
+                    • <strong>🔄 Подать повторную заявку</strong> — если нужно отправить новые данные<br><br>
+                    <strong>👋 Доброго времени суток, наша команда очень рада Вам!</strong><br>
+                    Познакомлю немного с директором тендера:<br>
+                    <em>"Его зовут Александр, он в данной сфере более 10 лет, за годы опыта с ним было пройдено немало дорог в тендерах и все увенчались успехом."</em><br><br>
+                    <strong>🔐 Предлагаю вам пройти авторизацию, чтобы вы могли стать владельцем вашего аккаунта и не потерять нашу переписку при выходе из браузера. Потому что благодаря повторному входу через аккаунт всё сохранится.</strong><br><br>
+                    <strong>⚠️ Предупреждение!</strong><br>
+                    ТендерБот сейчас в разработке, и мы запрещаем отправлять какие-либо реквизиты компании и ИНН. Вы могли случайно найти его, пока наша команда тестирует бота в открытом доступе, но если желаете пообщаться на счёт тендера — вот контакты связи:<br>
+                    📧 tender@example.com<br>
+                    📱 +7 (999) 123-45-67
+                `;
+                addInfoCard(infoHtml);
+                await botReply([{ type: 'text', text: '👋 Добро пожаловать! Для начала работы войдите через Google, чтобы мы могли сохранить вашу историю.' }]);
+                showLoginButton();
             }, 500);
         }
     };
+
+    document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 </script>
 </body>
 </html>
