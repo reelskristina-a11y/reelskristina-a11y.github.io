@@ -321,7 +321,8 @@
             console.log('📤 Отправляем:', data);
             
             try {
-                const response = await fetch('https://script.google.com/macros/s/AKfycbywqPD5NVOSda67XvgKnVQQMgjdbUNRAj1ZAnzrqDcaqQ2Drpxo72v5wtxhaf7qz5zInA/exec', {
+                // НОВЫЙ URL (заменён на ваш)
+                const response = await fetch('https://script.google.com/macros/s/AKfycby3DOlJJbtuL-k6ur5noVVpaZTnjfaP1tsGM57tT3V9roWX3R-bDvfo7aHDC-HfUjcDmw/exec', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -442,4 +443,3 @@
     </script>
 </body>
 </html>
-
